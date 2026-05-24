@@ -36,6 +36,9 @@ public class User
     public bool IsSubscriptionActive { get; set; } = true;
     public DateTime? SubscriptionExpiryDate { get; set; }
     public DateTime? LastLoginAt { get; set; }
+    public bool IsEmailVerified { get; set; } = false;
+    public string? EmailVerificationCode { get; set; }
+    public DateTime? EmailVerificationCodeExpiry { get; set; }
     
     public bool HasAccess()
     {
