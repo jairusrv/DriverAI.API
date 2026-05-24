@@ -5,8 +5,7 @@ namespace DriverAI.API.Models;
 public class VerifyCodeRequest
 {
     [Required(ErrorMessage = "El número de teléfono es requerido")]
-    [Phone(ErrorMessage = "Formato de teléfono inválido")]
-    [RegularExpression(@"^\+506[0-9]{8}$", ErrorMessage = "Formato inválido. Usa +506 seguido de 8 dígitos")]
+    [RegularExpression(@"^[0-9]{8}$", ErrorMessage = "El teléfono debe tener exactamente 8 dígitos")]
     public string PhoneNumber { get; set; } = string.Empty;
     
     [Required(ErrorMessage = "El código es requerido")]

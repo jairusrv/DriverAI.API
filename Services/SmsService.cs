@@ -15,25 +15,26 @@ public class SmsService
     {
         try
         {
-            // Validar formato de Costa Rica
+            // Validar formato de Costa Rica: +506 + 8 dígitos
             if (!phoneNumber.StartsWith("+506") || phoneNumber.Length != 12)
             {
-                _logger.LogError($"Número inválido para Costa Rica: {phoneNumber}. Debe ser +506 seguido de 8 dígitos.");
+                _logger.LogError($"Número inválido para Costa Rica: {phoneNumber}");
                 return false;
             }
             
             var localNumber = phoneNumber.Substring(4); // Extrae solo los 8 dígitos
+            
             _logger.LogInformation($"📱 Enviando SMS a Costa Rica (+506 {localNumber}): Código {code}");
             
             // ==========================================
-            // TODO: Implementar con servicio real para Costa Rica
-            // Opciones recomendadas:
+            // TODO: Implementar con servicio real de SMS
+            // Opciones recomendadas para Costa Rica:
             // 1. Twilio (soporta números de Costa Rica)
             // 2. Vonage (ex-Nexmo)
-            // 3. API de algún operador local (Kolbi, Movistar, Claro)
+            // 3. MensajeroCR (servicio local)
             // ==========================================
             
-            // Simular envío
+            // Simular envío (remover en producción)
             await Task.Delay(100);
             
             // Ejemplo con Twilio (descomentar cuando tengas credenciales):
@@ -45,7 +46,7 @@ public class SmsService
             
             var message = await MessageResource.CreateAsync(
                 body: $"DriverAI: Tu código de verificación es: {code}. Válido por 15 minutos.",
-                from: new PhoneNumber(_configuration["Twilio:PhoneNumber"]), // Número de Twilio (+506...)
+                from: new PhoneNumber(_configuration["Twilio:PhoneNumber"]),
                 to: new PhoneNumber(phoneNumber)
             );
             
@@ -56,7 +57,7 @@ public class SmsService
             }
             */
             
-            _logger.LogInformation($"✅ SMS enviado a {phoneNumber}");
+            _logger.LogInformation($"✅ SMS enviado a +506{localNumber}");
             return true;
         }
         catch (Exception ex)
