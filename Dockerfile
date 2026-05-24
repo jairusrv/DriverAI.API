@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 # Copiar el archivo del proyecto
@@ -9,11 +9,11 @@ RUN dotnet restore
 COPY . .
 RUN dotnet publish DriverAI.API.csproj -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 
 # ==========================================
-# INSTALAR LIBRERÍAS FALTANTES PARA POSTGRESQL
+# INSTALAR LIBRERÍAS PARA POSTGRESQL
 # ==========================================
 RUN apt-get update && apt-get install -y \
     libkrb5-3 \
@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Forzar confianza SSL (para evitar problemas de certificados)
+# Forzar confianza SSL
 ENV PGSSLMODE=require
 
 COPY --from=build /app/publish .
