@@ -2,23 +2,20 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 
 WORKDIR /src
 
-# Copiar solo el archivo .csproj primero (mejor para caché)
-COPY DriverAI.API.csproj .
+# Copiar todo el contenido del proyecto
+COPY . .
 
 # Restaurar dependencias
 RUN dotnet restore
 
-# Copiar todo el resto del código
-COPY . .
-
 # Publicar la aplicación
-RUN dotnet publish DriverAI.API.csproj -c Release -o /app/publish
+RUN dotnet publish -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 
 WORKDIR /app
 
-# Copiar los archivos publicados desde la etapa de build
+# Copiar los archivos publicados
 COPY --from=build /app/publish .
 
 ENV ASPNETCORE_URLS=http://+:10000
