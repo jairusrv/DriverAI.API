@@ -12,9 +12,8 @@ using System.Text;
 var builder =
     WebApplication.CreateBuilder(args);
 
-builder.WebHost.UseUrls(
-    "http://0.0.0.0:5158"
-);
+// 📌 Eliminar UseUrls fijo - Render usará el puerto 10000 por variable de entorno
+// builder.WebHost.UseUrls("http://0.0.0.0:5158");
 
 builder.Services.AddControllers();
 
@@ -22,14 +21,32 @@ builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<AppDbContext>(
-    options =>
-    {
-        options.UseInMemoryDatabase(
-            "DriverAIDB"
-        );
-    }
-);
+// ==========================================
+// 🔧 CONFIGURACIÓN DE BASE DE DATOS POSTGRESQL
+// ==========================================
+// Obtener cadena de conexión desde variable de entorno o appsettings.json
+// Render inyectará ConnectionStrings__DefaultConnection automáticamente
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// Si no existe, intentar obtener directamente desde variable de entorno (fallback)
+if (string.IsNullOrEmpty(connectionString))
+{
+    connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
+}
+
+// Validar que la cadena de conexión existe
+if (string.IsNullOrEmpty(connectionString))
+{
+    Console.WriteLine("⚠️ ADVERTENCIA: No se encontró cadena de conexión. Usando base de datos en memoria como fallback.");
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseInMemoryDatabase("DriverAIDB"));
+}
+else
+{
+    Console.WriteLine("✅ Usando PostgreSQL en Render");
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseNpgsql(connectionString));
+}
 
 builder.Services.AddScoped<JwtService>();
 
@@ -104,5 +121,28 @@ app.UseAuthorization();
 //app.UseMiddleware<AuthMiddleware>();
 
 app.MapControllers();
+
+// ==========================================
+// 🚀 APLICAR MIGRACIONES AUTOMÁTICAMENTE AL INICIAR
+// ==========================================
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    
+    // Verificar si estamos usando PostgreSQL (no en memoria)
+    if (dbContext.Database.ProviderName?.Contains("PostgreSQL") == true)
+    {
+        try
+        {
+            Console.WriteLine("🔄 Aplicando migraciones pendientes...");
+            dbContext.Database.Migrate();
+            Console.WriteLine("✅ Migraciones aplicadas correctamente");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error al aplicar migraciones: {ex.Message}");
+        }
+    }
+}
 
 app.Run();
