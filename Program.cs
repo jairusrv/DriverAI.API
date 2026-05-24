@@ -86,6 +86,9 @@ builder.Services.AddAuthorization();
 // ==========================================
 builder.Services.AddScoped<RecopeService>();      // ← Servicio para consumir API de Recope
 builder.Services.AddHttpClient<RecopeService>();  // ← HttpClient para RecopeService
+// Servicios de verificación
+builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<SmsService>();
 
 // ==========================================
 // CORS CONFIGURACIÓN

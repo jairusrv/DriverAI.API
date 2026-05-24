@@ -15,13 +15,17 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         
-        // Índice único para email
+        // Índices únicos
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Email)
             .IsUnique();
         
-        // Índice para búsquedas por fecha
-        modelBuilder.Entity<RecopeData>()
-            .HasIndex(r => r.Fecha);
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.PhoneNumber)
+            .IsUnique();
+        
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.Username)
+            .IsUnique();
     }
 }

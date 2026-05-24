@@ -12,13 +12,24 @@ public class User
     public string Email { get; set; } = string.Empty;
     
     [Required]
+    [Phone]
+    public string PhoneNumber { get; set; } = string.Empty;
+    
+    [Required]
     public string Username { get; set; } = string.Empty;
     
     [Required]
     public string PasswordHash { get; set; } = string.Empty;
     
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public bool IsEmailConfirmed { get; set; } = false;
+    public bool IsPhoneConfirmed { get; set; } = false;
     
-    // Relación con datos de Recope (si aplica)
-    public ICollection<RecopeData>? RecopeDataList { get; set; }
+    public string? EmailVerificationCode { get; set; }
+    public DateTime? EmailVerificationCodeExpiry { get; set; }
+    
+    public string? SmsVerificationCode { get; set; }
+    public DateTime? SmsVerificationCodeExpiry { get; set; }
+    
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? LastLoginAt { get; set; }
 }
