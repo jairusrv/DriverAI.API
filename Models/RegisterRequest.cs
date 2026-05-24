@@ -4,14 +4,16 @@ namespace DriverAI.API.Models;
 
 public class RegisterRequest
 {
+    [Required(ErrorMessage = "El número de teléfono es requerido")]
+    [Phone(ErrorMessage = "Formato de teléfono inválido")]
+    [RegularExpression(@"^\+506[0-9]{8}$", ErrorMessage = "Formato inválido. Usa +506 seguido de 8 dígitos (ej: +50612345678)")]
+    [MinLength(12, ErrorMessage = "El teléfono debe tener 12 caracteres (+506 + 8 dígitos)")]
+    [MaxLength(12, ErrorMessage = "El teléfono debe tener 12 caracteres (+506 + 8 dígitos)")]
+    public string PhoneNumber { get; set; } = string.Empty;
+    
     [Required(ErrorMessage = "El email es requerido")]
     [EmailAddress(ErrorMessage = "Formato de email inválido")]
     public string Email { get; set; } = string.Empty;
-    
-    [Required(ErrorMessage = "El teléfono es requerido")]
-    [Phone(ErrorMessage = "Formato de teléfono inválido")]
-    [RegularExpression(@"^[0-9]{8,15}$", ErrorMessage = "El teléfono debe tener entre 8 y 15 dígitos")]
-    public string PhoneNumber { get; set; } = string.Empty;
     
     [Required(ErrorMessage = "El nombre de usuario es requerido")]
     [MinLength(3, ErrorMessage = "El usuario debe tener al menos 3 caracteres")]

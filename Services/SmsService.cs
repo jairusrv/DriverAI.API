@@ -15,22 +15,48 @@ public class SmsService
     {
         try
         {
-            // TODO: Implementar con servicio real (Twilio, Vonage, etc.)
-            // Por ahora, simulamos el envío y lo logueamos
+            // Validar formato de Costa Rica
+            if (!phoneNumber.StartsWith("+506") || phoneNumber.Length != 12)
+            {
+                _logger.LogError($"Número inválido para Costa Rica: {phoneNumber}. Debe ser +506 seguido de 8 dígitos.");
+                return false;
+            }
             
-            _logger.LogInformation($"📱 SMS enviado a {phoneNumber}: Código {code}");
+            var localNumber = phoneNumber.Substring(4); // Extrae solo los 8 dígitos
+            _logger.LogInformation($"📱 Enviando SMS a Costa Rica (+506 {localNumber}): Código {code}");
+            
+            // ==========================================
+            // TODO: Implementar con servicio real para Costa Rica
+            // Opciones recomendadas:
+            // 1. Twilio (soporta números de Costa Rica)
+            // 2. Vonage (ex-Nexmo)
+            // 3. API de algún operador local (Kolbi, Movistar, Claro)
+            // ==========================================
             
             // Simular envío
             await Task.Delay(100);
             
-            // Cuando implementes un servicio real, usa algo como:
-            // var twilioClient = new TwilioClient(_configuration["Twilio:AccountSid"], _configuration["Twilio:AuthToken"]);
-            // var message = await MessageResource.CreateAsync(
-            //     body: $"DriverAI: Tu código de verificación es: {code}",
-            //     from: new PhoneNumber(_configuration["Twilio:PhoneNumber"]),
-            //     to: new PhoneNumber(phoneNumber)
-            // );
+            // Ejemplo con Twilio (descomentar cuando tengas credenciales):
+            /*
+            TwilioClient.Init(
+                _configuration["Twilio:AccountSid"],
+                _configuration["Twilio:AuthToken"]
+            );
             
+            var message = await MessageResource.CreateAsync(
+                body: $"DriverAI: Tu código de verificación es: {code}. Válido por 15 minutos.",
+                from: new PhoneNumber(_configuration["Twilio:PhoneNumber"]), // Número de Twilio (+506...)
+                to: new PhoneNumber(phoneNumber)
+            );
+            
+            if (message.ErrorCode != null)
+            {
+                _logger.LogError($"Error Twilio: {message.ErrorMessage}");
+                return false;
+            }
+            */
+            
+            _logger.LogInformation($"✅ SMS enviado a {phoneNumber}");
             return true;
         }
         catch (Exception ex)

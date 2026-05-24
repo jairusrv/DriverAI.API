@@ -36,91 +36,162 @@ public class AuthController : ControllerBase
     // 1. REGISTRO - Primer paso
     // ==========================================
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+{
+    var errors = new List<string>();
+    
+    // NORMALIZAR NÚMERO DE TELÉFONO
+    var normalizedPhone = NormalizePhoneNumber(request.PhoneNumber);
+    
+    // Validar formato después de normalizar
+    if (!IsValidCostaRicaPhone(normalizedPhone))
     {
-        var errors = new List<string>();
-        
-        // Validar email único
-        var existingEmail = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == request.Email);
-        
-        if (existingEmail != null)
-        {
-            errors.Add("El email ya está registrado. Por favor utiliza otro email.");
-        }
-        
-        // Validar teléfono único
-        var existingPhone = await _context.Users
-            .FirstOrDefaultAsync(u => u.PhoneNumber == request.PhoneNumber);
-        
-        if (existingPhone != null)
-        {
-            errors.Add("El número de teléfono ya está registrado.");
-        }
-        
-        // Validar usuario único
-        var existingUser = await _context.Users
-            .FirstOrDefaultAsync(u => u.Username == request.Username);
-        
-        if (existingUser != null)
-        {
-            errors.Add("El nombre de usuario ya está en uso. Por favor elige otro.");
-        }
-        
-        if (errors.Any())
-        {
-            return BadRequest(ApiResponse<object>.Error(
-                "No se pudo completar el registro. Por favor corrige los siguientes errores:",
-                errors));
-        }
-        
-        // Generar códigos de verificación
-        var emailCode = GenerateRandomCode();
-        var smsCode = GenerateRandomCode();
-        
-        // Crear hash de contraseña
-        using var sha256 = SHA256.Create();
-        var passwordHash = Convert.ToBase64String(
-            sha256.ComputeHash(Encoding.UTF8.GetBytes(request.Password))
-        );
-        
-        // Crear usuario (pendiente de verificación)
-        var user = new User
-        {
-            Email = request.Email,
-            PhoneNumber = request.PhoneNumber,
-            Username = request.Username,
-            PasswordHash = passwordHash,
-            IsEmailConfirmed = false,
-            IsPhoneConfirmed = false,
-            EmailVerificationCode = emailCode,
-            EmailVerificationCodeExpiry = DateTime.UtcNow.AddMinutes(15),
-            SmsVerificationCode = smsCode,
-            SmsVerificationCodeExpiry = DateTime.UtcNow.AddMinutes(15),
-            CreatedAt = DateTime.UtcNow
-        };
-        
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
-        
-        // Enviar códigos de verificación
-        var emailSent = await _emailService.SendVerificationCodeAsync(request.Email, emailCode);
-        var smsSent = await _smsService.SendVerificationCodeAsync(request.PhoneNumber, smsCode);
-        
-        var message = "Te hemos enviado códigos de verificación. ";
-        if (emailSent) message += "Revisa tu correo electrónico. ";
-        if (smsSent) message += "Revisa tu teléfono. ";
-        
-        return Ok(ApiResponse<object>.Ok(
-            new { 
-                email = request.Email,
-                phoneNumber = request.PhoneNumber,
-                requiresEmailVerification = true,
-                requiresSmsVerification = true
-            },
-            message
-        ));
+        errors.Add("El número de teléfono debe ser de Costa Rica con formato +506XXXXXXXX (8 dígitos)");
+        return BadRequest(ApiResponse<object>.Error(
+            "Formato de teléfono inválido.",
+            errors));
     }
+    
+    // Validar teléfono único
+    var existingPhone = await _context.Users
+        .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedPhone);
+    
+    if (existingPhone != null)
+    {
+        errors.Add("El número de teléfono ya está registrado.");
+    }
+    
+    // Validar email único
+    var existingEmail = await _context.Users
+        .FirstOrDefaultAsync(u => u.Email == request.Email);
+    
+    if (existingEmail != null)
+    {
+        errors.Add("El email ya está registrado con otra cuenta.");
+    }
+    
+    // Validar usuario único
+    var existingUser = await _context.Users
+        .FirstOrDefaultAsync(u => u.Username == request.Username);
+    
+    if (existingUser != null)
+    {
+        errors.Add("El nombre de usuario ya está en uso.");
+    }
+    
+    if (errors.Any())
+    {
+        return BadRequest(ApiResponse<object>.Error(
+            "No se pudo completar el registro.",
+            errors));
+    }
+    
+    // Generar código SMS
+    var smsCode = GenerateRandomCode();
+    
+    // Crear hash de contraseña
+    using var sha256 = SHA256.Create();
+    var passwordHash = Convert.ToBase64String(
+        sha256.ComputeHash(Encoding.UTF8.GetBytes(request.Password))
+    );
+    
+    // Calcular fecha de fin de prueba (7 días gratis)
+    var trialEndDate = DateTime.UtcNow.AddDays(7);
+    
+    // Crear usuario con teléfono normalizado
+    var user = new User
+    {
+        PhoneNumber = normalizedPhone,  // ← Usar número normalizado
+        Email = request.Email,
+        Username = request.Username,
+        PasswordHash = passwordHash,
+        IsPhoneVerified = false,
+        SmsVerificationCode = smsCode,
+        SmsVerificationCodeExpiry = DateTime.UtcNow.AddMinutes(15),
+        CreatedAt = DateTime.UtcNow,
+        TrialEndDate = trialEndDate,
+        IsSubscriptionActive = false,
+        SubscriptionExpiryDate = null
+    };
+    
+    _context.Users.Add(user);
+    await _context.SaveChangesAsync();
+    
+    // Enviar código SMS
+    var smsSent = await _smsService.SendVerificationCodeAsync(normalizedPhone, smsCode);
+    
+    // Obtener solo los 8 dígitos para mostrar (sin +506)
+    var displayPhone = normalizedPhone.Substring(4);
+    
+    return Ok(ApiResponse<object>.Ok(
+        new { 
+            phoneNumber = displayPhone,  // Mostrar solo 8 dígitos al usuario
+            countryCode = "+506",
+            trialEndDate = trialEndDate,
+            freeTrialDays = 7,
+            requiresSmsVerification = true
+        },
+        smsSent 
+            ? $"Te hemos enviado un código de verificación por SMS al número {displayPhone}. Tienes 7 días gratis a partir de la verificación."
+            : "No se pudo enviar el SMS. Intenta nuevamente."
+    ));
+}
+
+// ==========================================
+// MÉTODOS AUXILIARES PARA NÚMEROS DE COSTA RICA
+// ==========================================
+
+private string NormalizePhoneNumber(string phoneNumber)
+{
+    // Eliminar cualquier caracter que no sea número o +
+    var cleaned = phoneNumber.Trim();
+    
+    // Si ya tiene +506 y 8 dígitos después, devolverlo
+    if (cleaned.StartsWith("+506") && cleaned.Length == 12)
+    {
+        return cleaned;
+    }
+    
+    // Extraer solo números
+    var onlyNumbers = new string(cleaned.Where(char.IsDigit).ToArray());
+    
+    // Si tiene 8 dígitos (número local), agregar +506
+    if (onlyNumbers.Length == 8)
+    {
+        return $"+506{onlyNumbers}";
+    }
+    
+    // Si tiene 10 dígitos y empieza con 506, agregar +
+    if (onlyNumbers.Length == 10 && onlyNumbers.StartsWith("506"))
+    {
+        return $"+{onlyNumbers}";
+    }
+    
+    // Si tiene 11 dígitos y empieza con 506, tiene un dígito extra
+    if (onlyNumbers.Length == 11 && onlyNumbers.StartsWith("506"))
+    {
+        // Tomar solo los primeros 10 caracteres (506 + 7 dígitos) - esto es un error
+        return $"+{onlyNumbers.Substring(0, 10)}";
+    }
+    
+    // Si tiene 12 dígitos y empieza con 506, agregar +
+    if (onlyNumbers.Length == 12 && onlyNumbers.StartsWith("506"))
+    {
+        return $"+{onlyNumbers}";
+    }
+    
+    // Fallback: devolver el original
+    return cleaned;
+}
+
+private bool IsValidCostaRicaPhone(string phoneNumber)
+{
+    // Debe tener formato +506 seguido de exactamente 8 dígitos
+    return !string.IsNullOrEmpty(phoneNumber) && 
+           phoneNumber.StartsWith("+506") && 
+           phoneNumber.Length == 12 &&
+           phoneNumber.Substring(4).All(char.IsDigit);
+}
     
     // ==========================================
     // 2. VERIFICAR CÓDIGO (Email o SMS)
