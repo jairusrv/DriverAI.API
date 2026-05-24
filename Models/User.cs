@@ -1,27 +1,24 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace DriverAI.API.Models;
 
 public class User
 {
+    [Key]
     public int Id { get; set; }
-
-    public string FullName { get; set; }
-        = string.Empty;
-
-    public string Email { get; set; }
-        = string.Empty;
-
-    public string Phone { get; set; }
-        = string.Empty;
-
-    public string Password { get; set; }
-        = string.Empty;
-
-    public bool IsActive { get; set; }
-        = true;
-
-    public DateTime TrialEndsAt
-    {
-        get;
-        set;
-    } = DateTime.UtcNow.AddDays(7);
+    
+    [Required]
+    [EmailAddress]
+    public string Email { get; set; } = string.Empty;
+    
+    [Required]
+    public string Username { get; set; } = string.Empty;
+    
+    [Required]
+    public string PasswordHash { get; set; } = string.Empty;
+    
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    
+    // Relación con datos de Recope (si aplica)
+    public ICollection<RecopeData>? RecopeDataList { get; set; }
 }
