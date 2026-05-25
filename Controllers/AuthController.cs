@@ -114,6 +114,34 @@ public class AuthController : ControllerBase
             }
         });
     }
+
+    [HttpGet("subscription-status/{phoneNumber}")]
+public async Task<IActionResult> GetSubscriptionStatus(string phoneNumber)
+{
+    if (!IsValidPhoneFormat(phoneNumber))
+        return BadRequest(new { success = false, message = "Teléfono debe tener 8 dígitos" });
+
+    var fullPhoneNumber = $"+506{phoneNumber}";
+    var user = await _context.Users.FirstOrDefaultAsync(u => u.PhoneNumber == fullPhoneNumber);
+    if (user == null)
+        return NotFound(new { success = false, message = "Usuario no encontrado" });
+
+    var hasAccess = user.HasAccess();
+    var result = new
+    {
+        success = true,
+        data = new
+        {
+            hasAccess,
+            isInTrial = user.TrialEndDate > DateTime.UtcNow,
+            remainingTrialDays = user.GetRemainingTrialDays(),
+            isSubscriptionActive = user.IsSubscriptionActive && user.SubscriptionExpiryDate > DateTime.UtcNow,
+            subscriptionExpiryDate = user.SubscriptionExpiryDate,
+            message = hasAccess ? "Acceso activo" : "Suscripción requerida"
+        }
+    };
+    return Ok(result);
+}
     
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
