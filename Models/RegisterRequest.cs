@@ -22,4 +22,9 @@ public class RegisterRequest
     [Required(ErrorMessage = "La contraseña es requerida")]
     [MinLength(6, ErrorMessage = "La contraseña debe tener al menos 6 caracteres")]
     public string Password { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "El IMEI del dispositivo es requerido")]
+    [MinLength(10, ErrorMessage = "IMEI inválido")]
+    [MaxLength(100, ErrorMessage = "IMEI inválido")]
+    public string Imei { get; set; } = string.Empty;
 }

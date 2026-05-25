@@ -39,6 +39,10 @@ public class User
     public bool IsEmailVerified { get; set; } = false;
     public string? EmailVerificationCode { get; set; }
     public DateTime? EmailVerificationCodeExpiry { get; set; }
+
+    [Required]
+    [MaxLength(100)]
+    public string Imei { get; set; } = string.Empty;
     
     public bool HasAccess()
     {
