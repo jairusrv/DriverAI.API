@@ -7,61 +7,76 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ==========================================
-// CONFIGURACIÓN BÁSICA
-// ==========================================
+// Render usa el puerto 10000.
+// Localmente puedes seguir usando launchSettings o dotnet run.
+var port = Environment.GetEnvironmentVariable("PORT") ?? "5126";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+
+// Controllers / Swagger
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// ==========================================
-// CONFIGURACIÓN DE BASE DE DATOS
-// ==========================================
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
-if (string.IsNullOrEmpty(connectionString))
+// CORS
+builder.Services.AddCors(options =>
 {
-    connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
-}
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy
+            .AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
 
-if (string.IsNullOrEmpty(connectionString))
+// Database
+var connectionString =
+    builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+    ?? Environment.GetEnvironmentVariable("DATABASE_URL");
+
+if (string.IsNullOrWhiteSpace(connectionString))
 {
-    Console.WriteLine("⚠️ ADVERTENCIA: No se encontró cadena de conexión. Usando base de datos en memoria.");
+    Console.WriteLine("ADVERTENCIA: No se encontró connection string. Usando InMemory.");
     builder.Services.AddDbContext<AppDbContext>(options =>
         options.UseInMemoryDatabase("DriverAIDB"));
 }
 else
 {
-    Console.WriteLine("✅ Usando PostgreSQL con Npgsql 8.0.4");
-    
-    // Limpiar la cadena de conexión de parámetros problemáticos
-    connectionString = connectionString
-        .Replace("SSL Mode=Require", "")
-        .Replace("Trust Server Certificate=true", "")
-        .Replace(";;", ";")
-        .Trim(';', ' ');
-    
-    // Agregar SSL Mode=Require al final si no existe
-    if (!connectionString.Contains("SSL Mode", StringComparison.OrdinalIgnoreCase))
+    if (connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+        connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
     {
-        connectionString += ";SSL Mode=Require";
+        connectionString = ConvertDatabaseUrlToNpgsql(connectionString);
     }
-    
+
     builder.Services.AddDbContext<AppDbContext>(options =>
-        options.UseNpgsql(connectionString, npgsqlOptions =>
-        {
-            npgsqlOptions.EnableRetryOnFailure(3);
-            npgsqlOptions.CommandTimeout(30);
-        }));
+        options.UseNpgsql(connectionString));
 }
 
-// ==========================================
-// JWT CONFIGURACIÓN
-// ==========================================
+// Services
 builder.Services.AddScoped<JwtService>();
+builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<SmsService>();
+builder.Services.AddScoped<RecopeService>();
+builder.Services.AddHttpClient<RecopeService>();
 
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "DriverAI_SUPER_SECRET_KEY_2026_ULTRA_SECURE_123456789";
-var key = Encoding.UTF8.GetBytes(jwtKey);
+// JWT
+var jwtKey =
+    builder.Configuration["Jwt:Key"]
+    ?? Environment.GetEnvironmentVariable("JWT_KEY")
+    ?? "DriverAI_SUPER_SECRET_KEY_2026_ULTRA_SECURE_123456789";
+
+var jwtIssuer =
+    builder.Configuration["Jwt:Issuer"]
+    ?? Environment.GetEnvironmentVariable("JWT_ISSUER")
+    ?? "DriverAI";
+
+var jwtAudience =
+    builder.Configuration["Jwt:Audience"]
+    ?? Environment.GetEnvironmentVariable("JWT_AUDIENCE")
+    ?? "DriverAIUsers";
+
+var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -73,101 +88,54 @@ builder.Services
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "DriverAI",
-            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "DriverAIUsers",
-            IssuerSigningKey = new SymmetricSecurityKey(key)
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = new SymmetricSecurityKey(keyBytes)
         };
     });
 
 builder.Services.AddAuthorization();
 
-// ==========================================
-// SERVICIOS PERSONALIZADOS
-// ==========================================
-builder.Services.AddScoped<RecopeService>();      // ← Servicio para consumir API de Recope
-builder.Services.AddHttpClient<RecopeService>();  // ← HttpClient para RecopeService
-// Servicios de verificación
-builder.Services.AddScoped<EmailService>();
-builder.Services.AddScoped<SmsService>();
-
-// ==========================================
-// CORS CONFIGURACIÓN
-// ==========================================
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
-
 var app = builder.Build();
 
-// ==========================================
-// MIDDLEWARE PIPELINE
-// ==========================================
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-else
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Middleware
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseCors("AllowAll");
+
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
-// ==========================================
-// APLICAR MIGRACIONES AUTOMÁTICAMENTE
-// ==========================================
-using (var scope = app.Services.CreateScope())
+app.MapGet("/", () => Results.Ok(new
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    var isPostgreSQL = dbContext.Database.ProviderName?.Contains("PostgreSQL") == true;
-    
-    if (isPostgreSQL)
-    {
-        try
-        {
-            Console.WriteLine("🔄 Verificando/ aplicando migraciones pendientes...");
-            
-            // Verificar si la base de datos existe y las migraciones están aplicadas
-            var pendingMigrations = await dbContext.Database.GetPendingMigrationsAsync();
-            var pendingCount = pendingMigrations.Count();
-            
-            if (pendingCount > 0)
-            {
-                Console.WriteLine($"📦 Se encontraron {pendingCount} migraciones pendientes. Aplicando...");
-                await dbContext.Database.MigrateAsync();
-                Console.WriteLine("✅ Migraciones aplicadas correctamente");
-            }
-            else
-            {
-                Console.WriteLine("✅ No hay migraciones pendientes. La base de datos está actualizada.");
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"❌ Error al aplicar migraciones: {ex.Message}");
-            
-            // Mostrar más detalles del error
-            if (ex.InnerException != null)
-            {
-                Console.WriteLine($"📎 Detalle interno: {ex.InnerException.Message}");
-            }
-        }
-    }
-    else
-    {
-        Console.WriteLine("ℹ️ Usando base de datos en memoria. No se aplican migraciones.");
-    }
-}
+    app = "DriverAI.API",
+    status = "running"
+}));
 
 app.Run();
+
+static string ConvertDatabaseUrlToNpgsql(string databaseUrl)
+{
+    var uri = new Uri(databaseUrl);
+
+    var userInfo = uri.UserInfo.Split(':', 2);
+
+    var username = Uri.UnescapeDataString(userInfo[0]);
+    var password = userInfo.Length > 1
+        ? Uri.UnescapeDataString(userInfo[1])
+        : "";
+
+    var database = uri.AbsolutePath.TrimStart('/');
+
+    return
+        $"Host={uri.Host};" +
+        $"Port={uri.Port};" +
+        $"Database={database};" +
+        $"Username={username};" +
+        $"Password={password};" +
+        $"SSL Mode=Require;" +
+        $"Trust Server Certificate=true;";
+}
