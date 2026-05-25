@@ -28,6 +28,9 @@ public class User
     [Required]
     public string PasswordHash { get; set; } = string.Empty;
     
+    [Required]
+    [MaxLength(20)]
+    public string Role { get; set; } = "User";
     // Auto-verificados
     public bool IsEmailVerified { get; set; } = true;
     public bool IsPhoneVerified { get; set; } = true;
@@ -57,4 +60,5 @@ public class User
         var remaining = (TrialEndDate.Value - DateTime.UtcNow).Days;
         return remaining > 0 ? remaining : 0;
     }
+    
 }

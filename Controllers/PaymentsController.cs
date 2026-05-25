@@ -3,11 +3,13 @@ using DriverAI.API.Models.Entities;
 using DriverAI.API.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 
 namespace DriverAI.API.Controllers;
 
 [ApiController]
 [Route("payments")]
+[Authorize(Roles = "Admin")]
 public class PaymentsController : ControllerBase
 {
     private readonly AppDbContext _db;
