@@ -4,6 +4,7 @@ using DriverAI.API.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
+using DriverAI.API.Security;
 
 namespace DriverAI.API.Controllers;
 
@@ -22,6 +23,10 @@ public class RideHistoryController : ControllerBase
     [HttpGet("{userId:int}")]
     public async Task<IActionResult> GetByUserId(int userId)
     {
+        if (!UserAccessHelper.CanAccessUser(User, userId))
+{
+    return Forbid();
+}
         var userExists = await _db.Users
             .AnyAsync(x => x.Id == userId);
 
@@ -44,6 +49,10 @@ public class RideHistoryController : ControllerBase
     [HttpGet("{userId:int}/summary")]
     public async Task<IActionResult> GetSummary(int userId)
     {
+        if (!UserAccessHelper.CanAccessUser(User, userId))
+{
+    return Forbid();
+}
         var userExists = await _db.Users
             .AnyAsync(x => x.Id == userId);
 
@@ -81,6 +90,10 @@ public class RideHistoryController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create(RideHistoryRequest request)
     {
+        if (!UserAccessHelper.CanAccessUser(User, request.UserId))
+{
+    return Forbid();
+}
         var userExists = await _db.Users
             .AnyAsync(x => x.Id == request.UserId);
 
@@ -118,26 +131,31 @@ public class RideHistoryController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id)
+public async Task<IActionResult> Delete(int id)
+{
+    var ride = await _db.RideHistory
+        .FirstOrDefaultAsync(x => x.Id == id);
+
+    if (ride == null)
     {
-        var ride = await _db.RideHistory
-            .FirstOrDefaultAsync(x => x.Id == id);
-
-        if (ride == null)
+        return NotFound(new
         {
-            return NotFound(new
-            {
-                message = "Registro no encontrado"
-            });
-        }
-
-        _db.RideHistory.Remove(ride);
-
-        await _db.SaveChangesAsync();
-
-        return Ok(new
-        {
-            message = "Registro eliminado"
+            message = "Registro no encontrado"
         });
     }
+
+    if (!UserAccessHelper.CanAccessUser(User, ride.UserId))
+    {
+        return Forbid();
+    }
+
+    _db.RideHistory.Remove(ride);
+
+    await _db.SaveChangesAsync();
+
+    return Ok(new
+    {
+        message = "Registro eliminado"
+    });
+}
 }

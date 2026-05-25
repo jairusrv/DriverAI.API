@@ -4,6 +4,7 @@ using DriverAI.API.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
+using DriverAI.API.Security;
 
 namespace DriverAI.API.Controllers;
 
@@ -22,6 +23,10 @@ public class SettingsController : ControllerBase
     [HttpGet("{userId:int}")]
     public async Task<IActionResult> GetByUserId(int userId)
     {
+        if (!UserAccessHelper.CanAccessUser(User, userId))
+    {
+        return Forbid();
+    }
         var settings = await _db.UserSettings
             .FirstOrDefaultAsync(x => x.UserId == userId);
 
@@ -39,6 +44,12 @@ public class SettingsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateOrUpdate(UserSettingsRequest request)
     {
+
+        if (!UserAccessHelper.CanAccessUser(User, request.UserId))
+        {
+            return Forbid();
+        }
+        
         var userExists = await _db.Users
             .AnyAsync(x => x.Id == request.UserId);
 
