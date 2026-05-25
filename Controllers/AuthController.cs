@@ -96,7 +96,7 @@ public class AuthController : ControllerBase
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
         
-        var token = _jwtService.GenerateToken(user.Id.ToString(), user.Email);
+        var token = _jwtService.GenerateToken(user);
         var displayPhone = user.PhoneNumber.Substring(4);
         
         return Ok(new
@@ -169,7 +169,7 @@ public async Task<IActionResult> GetSubscriptionStatus(string phoneNumber)
         user.LastLoginAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         
-        var token = _jwtService.GenerateToken(user.Id.ToString(), user.Email);
+       var token = _jwtService.GenerateToken(user);
         var displayPhone = user.PhoneNumber.Substring(4);
         
         return Ok(new
