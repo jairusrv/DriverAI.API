@@ -1,0 +1,16 @@
+namespace DriverAI.API.Models.Requests;
+
+public class PaymentRequest
+{
+    public int UserId { get; set; }
+
+    public decimal Amount { get; set; }
+
+    public string Currency { get; set; } = "CRC";
+
+    public string Provider { get; set; } = "CARD";
+
+    public string ProviderReference { get; set; } = "";
+
+    public string Status { get; set; } = "PENDING";
+}
