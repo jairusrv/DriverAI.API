@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
-namespace DriverAI.API.Models;
+namespace DriverAI.API.Models.Entities;
 
 public class RecopeData
 {

@@ -1,4 +1,4 @@
-namespace DriverAI.API.Models;
+namespace DriverAI.API.Models.Responses;
 
 public class ApiResponse<T>
 {

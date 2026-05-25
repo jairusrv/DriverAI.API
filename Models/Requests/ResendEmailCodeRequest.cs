@@ -1,4 +1,4 @@
-namespace DriverAI.API.Models;
+namespace DriverAI.API.Models.Requests;
 
 public class ResendEmailCodeRequest
 {

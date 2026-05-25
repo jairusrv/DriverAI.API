@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace DriverAI.API.Models;
+namespace DriverAI.API.Models.Requests;
 
 public class LoginRequest
 {

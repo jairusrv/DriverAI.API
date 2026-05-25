@@ -1,4 +1,6 @@
-using DriverAI.API.Models;
+using DriverAI.API.Models.Entities;
+using DriverAI.API.Models.Requests;
+using DriverAI.API.Models.Responses;
 using Microsoft.EntityFrameworkCore;
 
 namespace DriverAI.API.Config;

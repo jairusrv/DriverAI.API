@@ -1,5 +1,7 @@
 using System.Text.Json;
-using DriverAI.API.Models;
+using DriverAI.API.Models.Entities;
+using DriverAI.API.Models.Requests;
+using DriverAI.API.Models.Responses;
 
 namespace DriverAI.API.Services;
 

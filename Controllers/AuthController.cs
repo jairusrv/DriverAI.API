@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 using DriverAI.API.Config;
-using DriverAI.API.Models;
+using DriverAI.API.Models.Entities;
+using DriverAI.API.Models.Requests;
+using DriverAI.API.Models.Responses;
 using DriverAI.API.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
