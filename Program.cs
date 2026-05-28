@@ -92,7 +92,12 @@ builder.Services.AddScoped<JwtService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<SmsService>();
 builder.Services.AddScoped<RecopeService>();
-builder.Services.AddHttpClient<RecopeService>();
+builder.Services
+    .AddHttpClient<RecopeService>(client =>
+    {
+        client.Timeout =
+            TimeSpan.FromSeconds(15);
+    });
 
 // JWT
 var jwtKey =

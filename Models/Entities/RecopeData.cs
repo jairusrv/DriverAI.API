@@ -1,25 +1,27 @@
 using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DriverAI.API.Models.Entities;
 
 public class RecopeData
 {
     [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int Id { get; set; }
-    
-    public string? Tipo { get; set; }          // Combustible, precio, etc.
-    public string? Producto { get; set; }
-    public decimal? Precio { get; set; }
-    public DateTime? Fecha { get; set; }
-    public string? Origen { get; set; }
-    
-    // Datos adicionales que vengan del API
-    public string? RawData { get; set; }       // Guardar JSON original
-    
-    public DateTime FechaConsulta { get; set; } = DateTime.UtcNow;
-    
-    // Relación con usuario (si quieres guardar quién consultó)
+
+    public string Tipo { get; set; } = string.Empty;
+
+    public string Producto { get; set; } = string.Empty;
+
+    public decimal Precio { get; set; }
+
+    public DateTime Fecha { get; set; }
+
+    public DateTime FechaConsulta { get; set; }
+
+    public string Origen { get; set; } = string.Empty;
+
+    public string RawData { get; set; } = string.Empty;
+
     public int? UserId { get; set; }
-    public User? User { get; set; }
 }

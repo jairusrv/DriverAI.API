@@ -39,7 +39,29 @@ public class RecopeController : ControllerBase
         foreach (var dato in datos)
         {
             dato.FechaConsulta = DateTime.UtcNow;
-            _context.RecopeData.Add(dato);
+            foreach (var dato in datos)
+{
+    var existente =
+        await _context.RecopeData
+            .FirstOrDefaultAsync(x =>
+                x.Producto == dato.Producto);
+
+    if (existente == null)
+    {
+        await _context.RecopeData.AddAsync(dato);
+    }
+    else
+    {
+        existente.Precio = dato.Precio;
+        existente.Fecha = dato.Fecha;
+        existente.FechaConsulta =
+            DateTime.UtcNow;
+        existente.RawData = dato.RawData;
+        existente.Origen = dato.Origen;
+    }
+}
+
+await _context.SaveChangesAsync();
         }
         
         await _context.SaveChangesAsync();
