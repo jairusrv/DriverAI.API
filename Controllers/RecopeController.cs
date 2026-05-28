@@ -11,7 +11,7 @@ namespace DriverAI.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]  // Requiere autenticación
+[AllowAnonymous]
 public class RecopeController : ControllerBase
 {
     private readonly AppDbContext _context;
