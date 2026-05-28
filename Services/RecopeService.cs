@@ -24,34 +24,104 @@ public class RecopeService
         _context = context;
     }
 
-    public async Task<List<RecopeData>?> ObtenerDatosAsync()
+    private async Task<List<RecopeData>> ObtenerUltimosDatosDesdeBd()
+{
+    var ultimaFecha =
+        await _context.RecopeData
+            .MaxAsync(x =>
+                (DateTime?)x.FechaConsulta);
+
+    if (ultimaFecha == null)
     {
-        try
-        {
-            var datosApi = await ObtenerDatosDesdeApiRecopeAsync();
-
-            if (datosApi != null && datosApi.Count > 0)
-            {
-                return datosApi;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Error al consumir API Recope. Se intentará usar BD local."
-            );
-        }
-
-        var datosBd = await ObtenerUltimosDatosDesdeBdAsync();
-
-        if (datosBd.Count > 0)
-        {
-            return datosBd;
-        }
-
-        return ObtenerFallback();
+        return new List<RecopeData>();
     }
+
+    return await _context.RecopeData
+        .Where(x =>
+            x.FechaConsulta == ultimaFecha.Value)
+        .OrderBy(x => x.Producto)
+        .ToListAsync();
+}
+
+    public async Task<List<RecopeData>> ObtenerDatosAsync()
+{
+    var hoy =
+        DateTime.UtcNow.Date;
+
+    // 1. Buscar cache del día
+    var cacheHoy =
+        await _context.RecopeData
+            .Where(x =>
+                x.FechaConsulta.Date == hoy)
+            .OrderBy(x => x.Producto)
+            .ToListAsync();
+
+    // Si ya hay cache del día, devolverlo.
+    if (cacheHoy.Any())
+    {
+        return cacheHoy;
+    }
+
+    try
+    {
+        // 2. Intentar RECOPE
+        var datosApi =
+            await ObtenerDatosDesdeApiRecopeAsync();
+
+        if (datosApi != null &&
+            datosApi.Any())
+        {
+            var normalizados =
+                NormalizarProductos(datosApi);
+
+            foreach (var item in normalizados)
+            {
+                var existente =
+                    await _context.RecopeData
+                        .FirstOrDefaultAsync(x =>
+                            x.Producto ==
+                            item.Producto);
+
+                if (existente == null)
+                {
+                    await _context.RecopeData
+                        .AddAsync(item);
+                }
+                else
+                {
+                    existente.Precio =
+                        item.Precio;
+
+                    existente.Fecha =
+                        item.Fecha;
+
+                    existente.FechaConsulta =
+                        DateTime.UtcNow;
+
+                    existente.RawData =
+                        item.RawData;
+
+                    existente.Origen =
+                        item.Origen;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            return normalizados;
+        }
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(
+            ex,
+            "Error al consumir API Recope. Se intentará usar BD local."
+        );
+    }
+
+    // 3. Fallback BD
+    return await ObtenerUltimosDatosDesdeBd();
+}
 
     private async Task<List<RecopeData>?> ObtenerDatosDesdeApiRecopeAsync()
 {
