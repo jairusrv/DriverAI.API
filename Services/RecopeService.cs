@@ -11,7 +11,7 @@ public class RecopeService
     private readonly ILogger<RecopeService> _logger;
     private readonly AppDbContext _context;
 
-    private const string RecopeBaseUrl = "https://api.recope.go.cr";
+    private const string RecopeBaseUrl = "https://api.recope.go.cr/ventas/precio/consumidor";
 
     public RecopeService(
         HttpClient httpClient,
