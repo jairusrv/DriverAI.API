@@ -44,6 +44,7 @@ public class SettingsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateOrUpdate(UserSettingsRequest request)
     {
+        
 
         if (!UserAccessHelper.CanAccessUser(User, request.UserId))
         {
@@ -84,7 +85,8 @@ public class SettingsController : ControllerBase
         settings.Currency = request.Currency;
         settings.Language = request.Language;
         settings.UpdatedAt = DateTime.UtcNow;
-
+        settings.ServiceType = request.ServiceType;
+        settings.Platform = request.Platform;
         await _db.SaveChangesAsync();
 
         return Ok(new

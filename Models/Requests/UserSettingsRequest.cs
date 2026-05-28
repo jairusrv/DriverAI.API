@@ -19,4 +19,8 @@ public class UserSettingsRequest
     public string Currency { get; set; } = "CRC";
 
     public string Language { get; set; } = "es";
+
+    public string ServiceType { get; set; } = "Driver";
+
+    public string Platform { get; set; } = "Uber";
 }
