@@ -186,7 +186,7 @@ public class RecopeService
             {
                 Tipo = "Combustible",
                 Producto = producto,
-                Precio = precio,
+                Precio = precio.Value,
                 Fecha = ParseFechaRecope(fecha),
                 Origen = "RECOPE_API",
                 RawData = rawJson,

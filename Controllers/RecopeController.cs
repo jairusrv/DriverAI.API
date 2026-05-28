@@ -39,7 +39,7 @@ public class RecopeController : ControllerBase
         foreach (var dato in datos)
         {
             dato.FechaConsulta = DateTime.UtcNow;
-            foreach (var dato in datos)
+            foreach (var item in datos)
 {
     var existente =
         await _context.RecopeData
@@ -48,16 +48,16 @@ public class RecopeController : ControllerBase
 
     if (existente == null)
     {
-        await _context.RecopeData.AddAsync(dato);
+        await _context.RecopeData.AddAsync(item);
     }
     else
     {
-        existente.Precio = dato.Precio;
-        existente.Fecha = dato.Fecha;
+        existente.Precio = item.Precio;
+        existente.Fecha = item.Fecha;
         existente.FechaConsulta =
             DateTime.UtcNow;
-        existente.RawData = dato.RawData;
-        existente.Origen = dato.Origen;
+        existente.RawData = item.RawData;
+        existente.Origen = item.Origen;
     }
 }
 
