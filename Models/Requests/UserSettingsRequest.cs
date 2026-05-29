@@ -23,4 +23,8 @@ public class UserSettingsRequest
     public string ServiceType { get; set; } = "Driver";
 
     public string Platform { get; set; } = "Uber";
+
+    public string? VehicleType { get; set; }
+
+    public double? MaintenanceCostPerKm { get; set; }
 }

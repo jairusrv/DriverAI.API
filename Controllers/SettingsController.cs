@@ -1,10 +1,10 @@
 using DriverAI.API.Config;
 using DriverAI.API.Models.Entities;
 using DriverAI.API.Models.Requests;
+using DriverAI.API.Security;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authorization;
-using DriverAI.API.Security;
 
 namespace DriverAI.API.Controllers;
 
@@ -24,9 +24,10 @@ public class SettingsController : ControllerBase
     public async Task<IActionResult> GetByUserId(int userId)
     {
         if (!UserAccessHelper.CanAccessUser(User, userId))
-    {
-        return Forbid();
-    }
+        {
+            return Forbid();
+        }
+
         var settings = await _db.UserSettings
             .FirstOrDefaultAsync(x => x.UserId == userId);
 
@@ -42,15 +43,23 @@ public class SettingsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreateOrUpdate(UserSettingsRequest request)
+    public async Task<IActionResult> CreateOrUpdate(
+        UserSettingsRequest request
+    )
     {
-        
-
         if (!UserAccessHelper.CanAccessUser(User, request.UserId))
         {
             return Forbid();
         }
-        
+
+        if (request.MaintenanceCostPerKm is < 0)
+        {
+            return BadRequest(new
+            {
+                message = "El costo de mantenimiento por km no puede ser negativo"
+            });
+        }
+
         var userExists = await _db.Users
             .AnyAsync(x => x.Id == request.UserId);
 
@@ -84,9 +93,14 @@ public class SettingsController : ControllerBase
         settings.MaxTripDistance = request.MaxTripDistance;
         settings.Currency = request.Currency;
         settings.Language = request.Language;
-        settings.UpdatedAt = DateTime.UtcNow;
         settings.ServiceType = request.ServiceType;
         settings.Platform = request.Platform;
+
+        settings.VehicleType = request.VehicleType;
+        settings.MaintenanceCostPerKm = request.MaintenanceCostPerKm;
+
+        settings.UpdatedAt = DateTime.UtcNow;
+
         await _db.SaveChangesAsync();
 
         return Ok(new
