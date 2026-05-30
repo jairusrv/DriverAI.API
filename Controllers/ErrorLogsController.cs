@@ -1,15 +1,14 @@
 using DriverAI.API.Config;
 using DriverAI.API.Models.Entities;
 using DriverAI.API.Models.Requests;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authorization;
 
 namespace DriverAI.API.Controllers;
 
 [ApiController]
 [Route("errors")]
-[Authorize(Roles = "Admin")]
 public class ErrorLogsController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -19,42 +18,8 @@ public class ErrorLogsController : ControllerBase
         _db = db;
     }
 
-    [HttpGet]
-    public async Task<IActionResult> GetAll()
-    {
-        var logs = await _db.ErrorLogs
-            .OrderByDescending(x => x.CreatedAt)
-            .Take(500)
-            .ToListAsync();
-
-        return Ok(logs);
-    }
-
-    [HttpGet("user/{userId:int}")]
-    public async Task<IActionResult> GetByUserId(int userId)
-    {
-        var logs = await _db.ErrorLogs
-            .Where(x => x.UserId == userId)
-            .OrderByDescending(x => x.CreatedAt)
-            .Take(200)
-            .ToListAsync();
-
-        return Ok(logs);
-    }
-
-    [HttpGet("source/{source}")]
-    public async Task<IActionResult> GetBySource(string source)
-    {
-        var logs = await _db.ErrorLogs
-            .Where(x => x.Source.ToLower() == source.ToLower())
-            .OrderByDescending(x => x.CreatedAt)
-            .Take(200)
-            .ToListAsync();
-
-        return Ok(logs);
-    }
-
     [HttpPost]
+    [AllowAnonymous]
     public async Task<IActionResult> Create(ErrorLogRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Message))
@@ -76,7 +41,6 @@ public class ErrorLogsController : ControllerBase
         };
 
         _db.ErrorLogs.Add(error);
-
         await _db.SaveChangesAsync();
 
         return Ok(new
@@ -86,7 +50,46 @@ public class ErrorLogsController : ControllerBase
         });
     }
 
+    [HttpGet]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetAll()
+    {
+        var logs = await _db.ErrorLogs
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(500)
+            .ToListAsync();
+
+        return Ok(logs);
+    }
+
+    [HttpGet("user/{userId:int}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetByUserId(int userId)
+    {
+        var logs = await _db.ErrorLogs
+            .Where(x => x.UserId == userId)
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(200)
+            .ToListAsync();
+
+        return Ok(logs);
+    }
+
+    [HttpGet("source/{source}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetBySource(string source)
+    {
+        var logs = await _db.ErrorLogs
+            .Where(x => x.Source.ToLower() == source.ToLower())
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(200)
+            .ToListAsync();
+
+        return Ok(logs);
+    }
+
     [HttpDelete("{id:int}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
         var error = await _db.ErrorLogs
@@ -101,7 +104,6 @@ public class ErrorLogsController : ControllerBase
         }
 
         _db.ErrorLogs.Remove(error);
-
         await _db.SaveChangesAsync();
 
         return Ok(new
@@ -111,12 +113,12 @@ public class ErrorLogsController : ControllerBase
     }
 
     [HttpDelete("clear")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Clear()
     {
         var logs = await _db.ErrorLogs.ToListAsync();
 
         _db.ErrorLogs.RemoveRange(logs);
-
         await _db.SaveChangesAsync();
 
         return Ok(new
