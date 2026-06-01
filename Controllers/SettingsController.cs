@@ -10,7 +10,7 @@ namespace DriverAI.API.Controllers;
 
 [ApiController]
 [Route("settings")]
-[Authorize(Roles = "Admin")]
+[Authorize]
 public class SettingsController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -95,6 +95,8 @@ public class SettingsController : ControllerBase
         settings.Language = request.Language;
         settings.ServiceType = request.ServiceType;
         settings.Platform = request.Platform;
+        settings.VehicleType = request.VehicleType;
+        settings.MaintenanceCostPerKm = request.MaintenanceCostPerKm;
 
         settings.VehicleType = request.VehicleType;
         settings.MaintenanceCostPerKm = request.MaintenanceCostPerKm;

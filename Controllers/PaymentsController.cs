@@ -1,9 +1,9 @@
 using DriverAI.API.Config;
 using DriverAI.API.Models.Entities;
 using DriverAI.API.Models.Requests;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authorization;
 
 namespace DriverAI.API.Controllers;
 
@@ -78,24 +78,15 @@ public class PaymentsController : ControllerBase
 
         _db.Payments.Add(payment);
 
-        if (request.Status.ToUpper() == "APPROVED" ||
-            request.Status.ToUpper() == "PAID")
+        if (IsApproved(request.Status))
         {
-            var subscription = new UserSubscription
-            {
-                UserId = user.Id,
-                Status = "ACTIVE",
-                StartDate = DateTime.UtcNow,
-                EndDate = DateTime.UtcNow.AddDays(30),
-                PaymentMethod = request.Provider,
-                Notes = $"Pago aprobado. Ref: {request.ProviderReference}",
-                CreatedAt = DateTime.UtcNow
-            };
+            await ExtendSubscriptionFromPayment(
+                user,
+                request.Provider,
+                request.ProviderReference
+            );
 
-            _db.UserSubscriptions.Add(subscription);
-
-            user.IsSubscriptionActive = true;
-            user.SubscriptionExpiryDate = subscription.EndDate;
+            await ApplyReferralRewardIfNeeded(user);
         }
 
         await _db.SaveChangesAsync();
@@ -103,7 +94,8 @@ public class PaymentsController : ControllerBase
         return Ok(new
         {
             message = "Pago registrado",
-            payment
+            payment,
+            subscriptionExpiryDate = user.SubscriptionExpiryDate
         });
     }
 
@@ -123,7 +115,7 @@ public class PaymentsController : ControllerBase
             });
         }
 
-        var startDate = DateTime.UtcNow;
+        var startDate = GetSubscriptionBaseDate(user);
         var endDate = startDate.AddDays(request.Days);
 
         var subscription = new UserSubscription
@@ -176,9 +168,43 @@ public class PaymentsController : ControllerBase
             });
         }
 
+        if (IsApproved(payment.Status))
+        {
+            return Ok(new
+            {
+                message = "El pago ya estaba aprobado",
+                payment,
+                subscriptionExpiryDate = user.SubscriptionExpiryDate
+            });
+        }
+
         payment.Status = "APPROVED";
 
-        var startDate = DateTime.UtcNow;
+        await ExtendSubscriptionFromPayment(
+            user,
+            payment.Provider,
+            payment.ProviderReference
+        );
+
+        await ApplyReferralRewardIfNeeded(user);
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Pago aprobado y suscripción activada",
+            payment,
+            subscriptionExpiryDate = user.SubscriptionExpiryDate
+        });
+    }
+
+    private async Task ExtendSubscriptionFromPayment(
+        User user,
+        string provider,
+        string providerReference
+    )
+    {
+        var startDate = GetSubscriptionBaseDate(user);
         var endDate = startDate.AddDays(30);
 
         var subscription = new UserSubscription
@@ -187,8 +213,8 @@ public class PaymentsController : ControllerBase
             Status = "ACTIVE",
             StartDate = startDate,
             EndDate = endDate,
-            PaymentMethod = payment.Provider,
-            Notes = $"Pago aprobado manualmente. Ref: {payment.ProviderReference}",
+            PaymentMethod = provider,
+            Notes = $"Pago aprobado. Ref: {providerReference}",
             CreatedAt = DateTime.UtcNow
         };
 
@@ -197,13 +223,70 @@ public class PaymentsController : ControllerBase
         user.IsSubscriptionActive = true;
         user.SubscriptionExpiryDate = endDate;
 
-        await _db.SaveChangesAsync();
+        await Task.CompletedTask;
+    }
 
-        return Ok(new
+    private async Task ApplyReferralRewardIfNeeded(User payingUser)
+    {
+        if (payingUser.ReferredByUserId == null)
+            return;
+
+        var referrer = await _db.Users
+            .FirstOrDefaultAsync(x => x.Id == payingUser.ReferredByUserId.Value);
+
+        if (referrer == null)
+            return;
+
+        referrer.ReferralPaidCount += 1;
+
+        if (referrer.ReferralPaidCount % 5 != 0)
+            return;
+
+        var startDate = GetSubscriptionBaseDate(referrer);
+        var endDate = startDate.AddDays(30);
+
+        var rewardSubscription = new UserSubscription
         {
-            message = "Pago aprobado y suscripción activada",
-            payment,
-            subscription
-        });
+            UserId = referrer.Id,
+            Status = "ACTIVE",
+            StartDate = startDate,
+            EndDate = endDate,
+            PaymentMethod = "REFERRAL_REWARD",
+            Notes = $"Premio por {referrer.ReferralPaidCount} referidos pagados.",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.UserSubscriptions.Add(rewardSubscription);
+
+        referrer.IsSubscriptionActive = true;
+        referrer.SubscriptionExpiryDate = endDate;
+        referrer.ReferralRewardCount += 1;
+        referrer.LastReferralRewardMessage =
+            $"Ganaste 30 días gratis por alcanzar {referrer.ReferralPaidCount} referidos pagados.";
+    }
+
+    private static DateTime GetSubscriptionBaseDate(User user)
+    {
+        var now = DateTime.UtcNow;
+
+        if (user.SubscriptionExpiryDate != null &&
+            user.SubscriptionExpiryDate > now)
+        {
+            return user.SubscriptionExpiryDate.Value;
+        }
+
+        if (user.TrialEndDate != null &&
+            user.TrialEndDate > now)
+        {
+            return user.TrialEndDate.Value;
+        }
+
+        return now;
+    }
+
+    private static bool IsApproved(string status)
+    {
+        return status.Equals("APPROVED", StringComparison.OrdinalIgnoreCase) ||
+               status.Equals("PAID", StringComparison.OrdinalIgnoreCase);
     }
 }
