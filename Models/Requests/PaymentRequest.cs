@@ -13,4 +13,11 @@ public class PaymentRequest
     public string ProviderReference { get; set; } = "";
 
     public string Status { get; set; } = "PENDING";
+    public string PaymentType { get; set; } = "SUBSCRIPTION";
+
+    public string? Notes { get; set; }
+
+    public string? SinpeSenderPhone { get; set; }
+
+    public string? SinpeReferenceNumber { get; set; }
 }

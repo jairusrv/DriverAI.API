@@ -24,9 +24,9 @@ public class RideHistoryController : ControllerBase
     public async Task<IActionResult> GetByUserId(int userId)
     {
         if (!UserAccessHelper.CanAccessUser(User, userId))
-{
-    return Forbid();
-}
+        {
+            return Forbid();
+        }
         var userExists = await _db.Users
             .AnyAsync(x => x.Id == userId);
 
@@ -50,9 +50,9 @@ public class RideHistoryController : ControllerBase
     public async Task<IActionResult> GetSummary(int userId)
     {
         if (!UserAccessHelper.CanAccessUser(User, userId))
-{
-    return Forbid();
-}
+        {
+            return Forbid();
+        }
         var userExists = await _db.Users
             .AnyAsync(x => x.Id == userId);
 
@@ -91,9 +91,9 @@ public class RideHistoryController : ControllerBase
     public async Task<IActionResult> Create(RideHistoryRequest request)
     {
         if (!UserAccessHelper.CanAccessUser(User, request.UserId))
-{
-    return Forbid();
-}
+        {
+            return Forbid();
+        }
         var userExists = await _db.Users
             .AnyAsync(x => x.Id == request.UserId);
 
@@ -131,31 +131,31 @@ public class RideHistoryController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-public async Task<IActionResult> Delete(int id)
-{
-    var ride = await _db.RideHistory
-        .FirstOrDefaultAsync(x => x.Id == id);
-
-    if (ride == null)
+    public async Task<IActionResult> Delete(int id)
     {
-        return NotFound(new
+        var ride = await _db.RideHistory
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (ride == null)
         {
-            message = "Registro no encontrado"
+            return NotFound(new
+            {
+                message = "Registro no encontrado"
+            });
+        }
+
+        if (!UserAccessHelper.CanAccessUser(User, ride.UserId))
+        {
+            return Forbid();
+        }
+
+        _db.RideHistory.Remove(ride);
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Registro eliminado"
         });
     }
-
-    if (!UserAccessHelper.CanAccessUser(User, ride.UserId))
-    {
-        return Forbid();
-    }
-
-    _db.RideHistory.Remove(ride);
-
-    await _db.SaveChangesAsync();
-
-    return Ok(new
-    {
-        message = "Registro eliminado"
-    });
-}
 }

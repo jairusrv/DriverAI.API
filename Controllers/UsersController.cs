@@ -328,69 +328,69 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost("{id:int}/promote-admin")]
-public async Task<IActionResult> PromoteToAdmin(
+    public async Task<IActionResult> PromoteToAdmin(
     int id,
     PromoteAdminRequest request
 )
-{
-    var user = await _db.Users
-        .FirstOrDefaultAsync(x => x.Id == id);
-
-    if (user == null)
     {
-        return NotFound(new
+        var user = await _db.Users
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (user == null)
         {
-            message = "Usuario no encontrado"
-        });
-    }
-
-    user.Role = "Admin";
-
-    await _db.SaveChangesAsync();
-
-    return Ok(new
-    {
-        message = "Usuario promovido a administrador",
-        user = new
-        {
-            user.Id,
-            user.Email,
-            user.Username,
-            user.Role
-        },
-        notes = request.Notes
-    });
-}
-[HttpPost("{id:int}/demote-admin")]
-public async Task<IActionResult> DemoteAdmin(
-    int id
-)
-{
-    var user = await _db.Users
-        .FirstOrDefaultAsync(x => x.Id == id);
-
-    if (user == null)
-    {
-        return NotFound(new
-        {
-            message = "Usuario no encontrado"
-        });
-    }
-
-    user.Role = "User";
-
-    await _db.SaveChangesAsync();
-
-    return Ok(new
-    {
-        message = "Usuario degradado a usuario normal",
-        user = new
-        {
-            user.Id,
-            user.Email,
-            user.Username,
-            user.Role
+            return NotFound(new
+            {
+                message = "Usuario no encontrado"
+            });
         }
-    });
-}
+
+        user.Role = "Admin";
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Usuario promovido a administrador",
+            user = new
+            {
+                user.Id,
+                user.Email,
+                user.Username,
+                user.Role
+            },
+            notes = request.Notes
+        });
+    }
+    [HttpPost("{id:int}/demote-admin")]
+    public async Task<IActionResult> DemoteAdmin(
+        int id
+    )
+    {
+        var user = await _db.Users
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (user == null)
+        {
+            return NotFound(new
+            {
+                message = "Usuario no encontrado"
+            });
+        }
+
+        user.Role = "User";
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Usuario degradado a usuario normal",
+            user = new
+            {
+                user.Id,
+                user.Email,
+                user.Username,
+                user.Role
+            }
+        });
+    }
 }

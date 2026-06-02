@@ -73,6 +73,10 @@ public class PaymentsController : ControllerBase
             Provider = request.Provider,
             ProviderReference = request.ProviderReference,
             Status = request.Status,
+            PaymentType = request.PaymentType,
+            Notes = request.Notes,
+            SinpeSenderPhone = request.SinpeSenderPhone,
+            SinpeReferenceNumber = request.SinpeReferenceNumber,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -142,10 +146,37 @@ public class PaymentsController : ControllerBase
             subscription
         });
     }
+    [HttpGet("user/{userId:int}/summary")]
+    public async Task<IActionResult> GetSummary(
+    int userId
+)
+    {
+        var payments = await _db.Payments
+            .Where(x =>
+                x.UserId == userId &&
+                x.Status == "APPROVED")
+            .ToListAsync();
+
+        return Ok(new
+        {
+            totalPayments = payments.Count,
+
+            totalAmount =
+                payments.Sum(x => x.Amount),
+
+            firstPayment =
+                payments.MinBy(x => x.CreatedAt),
+
+            lastPayment =
+                payments.MaxBy(x => x.CreatedAt)
+        });
+    }
 
     [HttpPost("{paymentId:int}/approve")]
     public async Task<IActionResult> ApprovePayment(int paymentId)
     {
+
+
         var payment = await _db.Payments
             .FirstOrDefaultAsync(x => x.Id == paymentId);
 
@@ -180,6 +211,20 @@ public class PaymentsController : ControllerBase
 
         payment.Status = "APPROVED";
 
+        var paidFrom = GetSubscriptionBaseDate(user);
+
+        var paidUntil = paidFrom.AddDays(30);
+
+        payment.PaidFrom = paidFrom;
+
+        payment.PaidUntil = paidUntil;
+
+        payment.ApprovedAt = DateTime.UtcNow;
+
+        payment.ApprovedBy =
+            User.Identity?.Name ??
+            "ADMIN";
+
         await ExtendSubscriptionFromPayment(
             user,
             payment.Provider,
@@ -196,6 +241,8 @@ public class PaymentsController : ControllerBase
             payment,
             subscriptionExpiryDate = user.SubscriptionExpiryDate
         });
+
+
     }
 
     private async Task ExtendSubscriptionFromPayment(
@@ -263,6 +310,37 @@ public class PaymentsController : ControllerBase
         referrer.ReferralRewardCount += 1;
         referrer.LastReferralRewardMessage =
             $"Ganaste 30 días gratis por alcanzar {referrer.ReferralPaidCount} referidos pagados.";
+
+        _db.Payments.Add(
+            new Payment
+            {
+                UserId = referrer.Id,
+
+                Amount = 0,
+
+                Currency = "CRC",
+
+                Provider = "SYSTEM",
+
+                ProviderReference = "",
+
+                Status = "APPROVED",
+
+                PaymentType = "REFERRAL_REWARD",
+
+                PaidFrom = startDate,
+
+                PaidUntil = endDate,
+
+                ApprovedAt = DateTime.UtcNow,
+
+                ApprovedBy = "SYSTEM",
+
+                Notes =
+            $"Premio por {referrer.ReferralPaidCount} referidos pagados.",
+
+                CreatedAt = DateTime.UtcNow
+            });
     }
 
     private static DateTime GetSubscriptionBaseDate(User user)

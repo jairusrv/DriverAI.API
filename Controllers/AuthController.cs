@@ -158,6 +158,7 @@ public class AuthController : ControllerBase
                     phoneNumber = displayPhone,
                     user.Email,
                     user.Username,
+                    user.Role,
                     user.ReferralCode
                 },
                 subscription = BuildSubscriptionResponse(user)
@@ -279,6 +280,7 @@ public class AuthController : ControllerBase
                     phoneNumber = displayPhone,
                     user.Email,
                     user.Username,
+                    user.Role,
                     user.ReferralCode
                 },
                 subscription = BuildSubscriptionResponse(user)

@@ -19,4 +19,20 @@ public class Payment
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public User? User { get; set; }
+
+    public string PaymentType { get; set; } = "SUBSCRIPTION";
+
+    public DateTime? PaidFrom { get; set; }
+
+    public DateTime? PaidUntil { get; set; }
+
+    public DateTime? ApprovedAt { get; set; }
+
+    public string? ApprovedBy { get; set; }
+
+    public string? Notes { get; set; }
+
+    public string? SinpeSenderPhone { get; set; }
+
+    public string? SinpeReferenceNumber { get; set; }
 }

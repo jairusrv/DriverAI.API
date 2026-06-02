@@ -56,6 +56,7 @@ public class User
     public int ReferralPaidCount { get; set; } = 0;
     public int ReferralRewardCount { get; set; } = 0;
     public string? LastReferralRewardMessage { get; set; }
+    
 
     public bool HasAccess()
     {
