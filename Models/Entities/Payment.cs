@@ -10,15 +10,11 @@ public class Payment
 
     public string Currency { get; set; } = "CRC";
 
-    public string Provider { get; set; } = "CARD";
+    public string Provider { get; set; } = "SINPE_MOVIL";
 
     public string ProviderReference { get; set; } = "";
 
     public string Status { get; set; } = "PENDING";
-
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    public User? User { get; set; }
 
     public string PaymentType { get; set; } = "SUBSCRIPTION";
 
@@ -35,4 +31,8 @@ public class Payment
     public string? SinpeSenderPhone { get; set; }
 
     public string? SinpeReferenceNumber { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public User? User { get; set; }
 }

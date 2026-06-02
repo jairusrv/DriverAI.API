@@ -8,11 +8,12 @@ public class PaymentRequest
 
     public string Currency { get; set; } = "CRC";
 
-    public string Provider { get; set; } = "CARD";
+    public string Provider { get; set; } = "SINPE_MOVIL";
 
     public string ProviderReference { get; set; } = "";
 
     public string Status { get; set; } = "PENDING";
+
     public string PaymentType { get; set; } = "SUBSCRIPTION";
 
     public string? Notes { get; set; }

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using DriverAI.API.Config;
 using DriverAI.API.Models.Entities;
 using DriverAI.API.Models.Requests;
@@ -9,7 +10,6 @@ namespace DriverAI.API.Controllers;
 
 [ApiController]
 [Route("payments")]
-[Authorize(Roles = "Admin")]
 public class PaymentsController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -20,6 +20,7 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAll()
     {
         var payments = await _db.Payments
@@ -30,6 +31,7 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpGet("user/{userId:int}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetByUserId(int userId)
     {
         var userExists = await _db.Users
@@ -51,7 +53,39 @@ public class PaymentsController : ControllerBase
         return Ok(payments);
     }
 
+    [HttpGet("user/{userId:int}/summary")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetSummary(int userId)
+    {
+        var userExists = await _db.Users
+            .AnyAsync(x => x.Id == userId);
+
+        if (!userExists)
+        {
+            return NotFound(new
+            {
+                message = "Usuario no existe"
+            });
+        }
+
+        var approvedPayments = await _db.Payments
+            .Where(x =>
+                x.UserId == userId &&
+                x.Status.ToUpper() == "APPROVED")
+            .OrderBy(x => x.CreatedAt)
+            .ToListAsync();
+
+        return Ok(new
+        {
+            totalPayments = approvedPayments.Count,
+            totalAmount = approvedPayments.Sum(x => x.Amount),
+            firstPayment = approvedPayments.FirstOrDefault(),
+            lastPayment = approvedPayments.LastOrDefault()
+        });
+    }
+
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create(PaymentRequest request)
     {
         var user = await _db.Users
@@ -65,6 +99,14 @@ public class PaymentsController : ControllerBase
             });
         }
 
+        if (request.Amount < 0)
+        {
+            return BadRequest(new
+            {
+                message = "El monto no puede ser negativo"
+            });
+        }
+
         var payment = new Payment
         {
             UserId = request.UserId,
@@ -72,8 +114,8 @@ public class PaymentsController : ControllerBase
             Currency = request.Currency,
             Provider = request.Provider,
             ProviderReference = request.ProviderReference,
-            Status = request.Status,
-            PaymentType = request.PaymentType,
+            Status = NormalizeStatus(request.Status),
+            PaymentType = NormalizePaymentType(request.PaymentType),
             Notes = request.Notes,
             SinpeSenderPhone = request.SinpeSenderPhone,
             SinpeReferenceNumber = request.SinpeReferenceNumber,
@@ -82,14 +124,10 @@ public class PaymentsController : ControllerBase
 
         _db.Payments.Add(payment);
 
-        if (IsApproved(request.Status))
+        if (IsApproved(payment.Status))
         {
-            await ExtendSubscriptionFromPayment(
-                user,
-                request.Provider,
-                request.ProviderReference
-            );
-
+            ApplySubscriptionPeriod(user, payment, 30);
+            CreateSubscriptionRecord(user, payment);
             await ApplyReferralRewardIfNeeded(user);
         }
 
@@ -103,7 +141,98 @@ public class PaymentsController : ControllerBase
         });
     }
 
+    [HttpPost("report-sinpe")]
+    [Authorize]
+    public async Task<IActionResult> ReportSinpePayment(
+        ReportSinpePaymentRequest request
+    )
+    {
+        var userId = GetCurrentUserId();
+
+        if (userId == null)
+        {
+            return Unauthorized(new
+            {
+                message = "No se pudo identificar el usuario."
+            });
+        }
+
+        var user = await _db.Users
+            .FirstOrDefaultAsync(x => x.Id == userId.Value);
+
+        if (user == null)
+        {
+            return BadRequest(new
+            {
+                message = "Usuario no existe"
+            });
+        }
+
+        if (request.Amount <= 0)
+        {
+            return BadRequest(new
+            {
+                message = "El monto debe ser mayor a cero."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.SinpeSenderPhone))
+        {
+            return BadRequest(new
+            {
+                message = "El teléfono SINPE es requerido."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.SinpeReferenceNumber))
+        {
+            return BadRequest(new
+            {
+                message = "La referencia SINPE es requerida."
+            });
+        }
+
+        var existingPending = await _db.Payments.AnyAsync(x =>
+            x.UserId == user.Id &&
+            x.Status == "PENDING" &&
+            x.Provider == "SINPE_MOVIL" &&
+            x.SinpeReferenceNumber == request.SinpeReferenceNumber);
+
+        if (existingPending)
+        {
+            return Conflict(new
+            {
+                message = "Ya existe un pago pendiente con esa referencia."
+            });
+        }
+
+        var payment = new Payment
+        {
+            UserId = user.Id,
+            Amount = request.Amount,
+            Currency = "CRC",
+            Provider = "SINPE_MOVIL",
+            ProviderReference = request.SinpeReferenceNumber,
+            Status = "PENDING",
+            PaymentType = "SUBSCRIPTION",
+            SinpeSenderPhone = request.SinpeSenderPhone.Trim(),
+            SinpeReferenceNumber = request.SinpeReferenceNumber.Trim(),
+            Notes = request.Notes,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.Payments.Add(payment);
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Pago SINPE reportado. Quedará pendiente de aprobación.",
+            payment
+        });
+    }
+
     [HttpPost("activate-subscription")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> ActivateSubscription(
         ActivateSubscriptionRequestV2 request
     )
@@ -146,37 +275,11 @@ public class PaymentsController : ControllerBase
             subscription
         });
     }
-    [HttpGet("user/{userId:int}/summary")]
-    public async Task<IActionResult> GetSummary(
-    int userId
-)
-    {
-        var payments = await _db.Payments
-            .Where(x =>
-                x.UserId == userId &&
-                x.Status == "APPROVED")
-            .ToListAsync();
-
-        return Ok(new
-        {
-            totalPayments = payments.Count,
-
-            totalAmount =
-                payments.Sum(x => x.Amount),
-
-            firstPayment =
-                payments.MinBy(x => x.CreatedAt),
-
-            lastPayment =
-                payments.MaxBy(x => x.CreatedAt)
-        });
-    }
 
     [HttpPost("{paymentId:int}/approve")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> ApprovePayment(int paymentId)
     {
-
-
         var payment = await _db.Payments
             .FirstOrDefaultAsync(x => x.Id == paymentId);
 
@@ -211,25 +314,8 @@ public class PaymentsController : ControllerBase
 
         payment.Status = "APPROVED";
 
-        var paidFrom = GetSubscriptionBaseDate(user);
-
-        var paidUntil = paidFrom.AddDays(30);
-
-        payment.PaidFrom = paidFrom;
-
-        payment.PaidUntil = paidUntil;
-
-        payment.ApprovedAt = DateTime.UtcNow;
-
-        payment.ApprovedBy =
-            User.Identity?.Name ??
-            "ADMIN";
-
-        await ExtendSubscriptionFromPayment(
-            user,
-            payment.Provider,
-            payment.ProviderReference
-        );
+        ApplySubscriptionPeriod(user, payment, 30);
+        CreateSubscriptionRecord(user, payment);
 
         await ApplyReferralRewardIfNeeded(user);
 
@@ -241,36 +327,80 @@ public class PaymentsController : ControllerBase
             payment,
             subscriptionExpiryDate = user.SubscriptionExpiryDate
         });
-
-
     }
 
-    private async Task ExtendSubscriptionFromPayment(
+    [HttpPost("{paymentId:int}/reject")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> RejectPayment(int paymentId)
+    {
+        var payment = await _db.Payments
+            .FirstOrDefaultAsync(x => x.Id == paymentId);
+
+        if (payment == null)
+        {
+            return NotFound(new
+            {
+                message = "Pago no encontrado"
+            });
+        }
+
+        if (IsApproved(payment.Status))
+        {
+            return BadRequest(new
+            {
+                message = "No se puede rechazar un pago ya aprobado."
+            });
+        }
+
+        payment.Status = "REJECTED";
+        payment.ApprovedAt = DateTime.UtcNow;
+        payment.ApprovedBy = GetAdminName();
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Pago rechazado",
+            payment
+        });
+    }
+
+    private void ApplySubscriptionPeriod(
         User user,
-        string provider,
-        string providerReference
+        Payment payment,
+        int days
     )
     {
-        var startDate = GetSubscriptionBaseDate(user);
-        var endDate = startDate.AddDays(30);
+        var paidFrom = GetSubscriptionBaseDate(user);
+        var paidUntil = paidFrom.AddDays(days);
 
+        payment.PaidFrom = paidFrom;
+        payment.PaidUntil = paidUntil;
+        payment.ApprovedAt = DateTime.UtcNow;
+        payment.ApprovedBy = GetAdminName();
+
+        user.IsSubscriptionActive = true;
+        user.SubscriptionExpiryDate = paidUntil;
+    }
+
+    private void CreateSubscriptionRecord(
+        User user,
+        Payment payment
+    )
+    {
         var subscription = new UserSubscription
         {
             UserId = user.Id,
             Status = "ACTIVE",
-            StartDate = startDate,
-            EndDate = endDate,
-            PaymentMethod = provider,
-            Notes = $"Pago aprobado. Ref: {providerReference}",
+            StartDate = payment.PaidFrom ?? DateTime.UtcNow,
+            EndDate = payment.PaidUntil ?? DateTime.UtcNow.AddDays(30),
+            PaymentMethod = payment.Provider,
+            Notes =
+                $"Pago aprobado. Ref: {payment.ProviderReference}",
             CreatedAt = DateTime.UtcNow
         };
 
         _db.UserSubscriptions.Add(subscription);
-
-        user.IsSubscriptionActive = true;
-        user.SubscriptionExpiryDate = endDate;
-
-        await Task.CompletedTask;
     }
 
     private async Task ApplyReferralRewardIfNeeded(User payingUser)
@@ -279,7 +409,8 @@ public class PaymentsController : ControllerBase
             return;
 
         var referrer = await _db.Users
-            .FirstOrDefaultAsync(x => x.Id == payingUser.ReferredByUserId.Value);
+            .FirstOrDefaultAsync(x =>
+                x.Id == payingUser.ReferredByUserId.Value);
 
         if (referrer == null)
             return;
@@ -289,58 +420,43 @@ public class PaymentsController : ControllerBase
         if (referrer.ReferralPaidCount % 5 != 0)
             return;
 
-        var startDate = GetSubscriptionBaseDate(referrer);
-        var endDate = startDate.AddDays(30);
+        var rewardPayment = new Payment
+        {
+            UserId = referrer.Id,
+            Amount = 0,
+            Currency = "CRC",
+            Provider = "SYSTEM",
+            ProviderReference = "",
+            Status = "APPROVED",
+            PaymentType = "REFERRAL_REWARD",
+            Notes =
+                $"Premio por {referrer.ReferralPaidCount} referidos pagados.",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        ApplySubscriptionPeriod(referrer, rewardPayment, 30);
+
+        rewardPayment.ApprovedBy = "SYSTEM";
+
+        _db.Payments.Add(rewardPayment);
 
         var rewardSubscription = new UserSubscription
         {
             UserId = referrer.Id,
             Status = "ACTIVE",
-            StartDate = startDate,
-            EndDate = endDate,
+            StartDate = rewardPayment.PaidFrom ?? DateTime.UtcNow,
+            EndDate = rewardPayment.PaidUntil ?? DateTime.UtcNow.AddDays(30),
             PaymentMethod = "REFERRAL_REWARD",
-            Notes = $"Premio por {referrer.ReferralPaidCount} referidos pagados.",
+            Notes =
+                $"Premio por {referrer.ReferralPaidCount} referidos pagados.",
             CreatedAt = DateTime.UtcNow
         };
 
         _db.UserSubscriptions.Add(rewardSubscription);
 
-        referrer.IsSubscriptionActive = true;
-        referrer.SubscriptionExpiryDate = endDate;
         referrer.ReferralRewardCount += 1;
         referrer.LastReferralRewardMessage =
             $"Ganaste 30 días gratis por alcanzar {referrer.ReferralPaidCount} referidos pagados.";
-
-        _db.Payments.Add(
-            new Payment
-            {
-                UserId = referrer.Id,
-
-                Amount = 0,
-
-                Currency = "CRC",
-
-                Provider = "SYSTEM",
-
-                ProviderReference = "",
-
-                Status = "APPROVED",
-
-                PaymentType = "REFERRAL_REWARD",
-
-                PaidFrom = startDate,
-
-                PaidUntil = endDate,
-
-                ApprovedAt = DateTime.UtcNow,
-
-                ApprovedBy = "SYSTEM",
-
-                Notes =
-            $"Premio por {referrer.ReferralPaidCount} referidos pagados.",
-
-                CreatedAt = DateTime.UtcNow
-            });
     }
 
     private static DateTime GetSubscriptionBaseDate(User user)
@@ -362,9 +478,48 @@ public class PaymentsController : ControllerBase
         return now;
     }
 
+    private int? GetCurrentUserId()
+    {
+        var userIdClaim =
+            User.FindFirst("id")?.Value ??
+            User.FindFirst("userId")?.Value ??
+            User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (int.TryParse(userIdClaim, out var userId))
+        {
+            return userId;
+        }
+
+        return null;
+    }
+
+    private string GetAdminName()
+    {
+        return User.Identity?.Name ??
+               User.FindFirst(ClaimTypes.Name)?.Value ??
+               User.FindFirst("username")?.Value ??
+               "ADMIN";
+    }
+
     private static bool IsApproved(string status)
     {
         return status.Equals("APPROVED", StringComparison.OrdinalIgnoreCase) ||
                status.Equals("PAID", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeStatus(string status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+            return "PENDING";
+
+        return status.Trim().ToUpperInvariant();
+    }
+
+    private static string NormalizePaymentType(string paymentType)
+    {
+        if (string.IsNullOrWhiteSpace(paymentType))
+            return "SUBSCRIPTION";
+
+        return paymentType.Trim().ToUpperInvariant();
     }
 }
