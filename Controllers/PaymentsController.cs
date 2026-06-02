@@ -328,7 +328,81 @@ public class PaymentsController : ControllerBase
             subscriptionExpiryDate = user.SubscriptionExpiryDate
         });
     }
+    /// <summary>
+    /// Endpoint para obtener un resumen de métricas clave para el dashboard administrativo, incluyendo:
+    /// </summary>
+    /// <returns></returns>
+    [HttpGet("dashboard-summary")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetDashboardSummary()
+    {
+        var now = DateTime.UtcNow;
+        var monthStart = new DateTime(now.Year, now.Month, 1);
 
+        var payments = await _db.Payments.ToListAsync();
+        var users = await _db.Users.ToListAsync();
+
+        var approvedPayments = payments
+            .Where(x => x.Status.Equals("APPROVED", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var pendingPayments = payments
+            .Where(x => x.Status.Equals("PENDING", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var rejectedPayments = payments
+            .Where(x => x.Status.Equals("REJECTED", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var monthlyApprovedPayments = approvedPayments
+            .Where(x => x.ApprovedAt != null && x.ApprovedAt >= monthStart)
+            .ToList();
+
+        var subscriptionPayments = approvedPayments
+            .Where(x => x.PaymentType.Equals("SUBSCRIPTION", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var referralRewards = approvedPayments
+            .Where(x => x.PaymentType.Equals("REFERRAL_REWARD", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var activeUsers = users
+            .Count(x => x.HasAccess());
+
+        var expiredUsers = users.Count - activeUsers;
+
+        return Ok(new
+        {
+            pendingPayments = pendingPayments.Count,
+            approvedPayments = approvedPayments.Count,
+            rejectedPayments = rejectedPayments.Count,
+
+            totalRevenue = subscriptionPayments.Sum(x => x.Amount),
+            monthlyRevenue = monthlyApprovedPayments
+                .Where(x => x.PaymentType.Equals("SUBSCRIPTION", StringComparison.OrdinalIgnoreCase))
+                .Sum(x => x.Amount),
+
+            activeUsers,
+            expiredUsers,
+            totalUsers = users.Count,
+
+            referralRewards = referralRewards.Count,
+            freeDaysGranted = referralRewards.Count * 30,
+
+            lastApprovedPayment = approvedPayments
+                .OrderByDescending(x => x.ApprovedAt ?? x.CreatedAt)
+                .FirstOrDefault(),
+
+            lastPendingPayment = pendingPayments
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefault()
+        });
+    }
+/// <summary>
+/// Endpoint para rechazar un pago reportado por el usuario, cambiando su estado a "REJECTED". Solo se pueden rechazar pagos que no estén ya aprobados. Rechazar un pago no activa ninguna suscripción ni otorga beneficios. El pago quedará registrado con el nuevo estado para referencia futura.
+/// </summary>
+/// <param name="paymentId"></param>
+/// <returns></returns>
     [HttpPost("{paymentId:int}/reject")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> RejectPayment(int paymentId)
