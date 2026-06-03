@@ -137,6 +137,8 @@ public class UsersController : ControllerBase
             };
 
             _db.UserSubscriptions.Add(subscription);
+
+
         }
         else
         {
@@ -293,6 +295,45 @@ public class UsersController : ControllerBase
         };
 
         _db.UserSubscriptions.Add(subscription);
+
+        var payment = new Payment
+        {
+            UserId = user.Id,
+
+            Amount = 0,
+
+            Currency = "CRC",
+
+            Provider = "ADMIN_PANEL",
+
+            ProviderReference = Guid.NewGuid()
+        .ToString("N")
+        .Substring(0, 12)
+        .ToUpper(),
+
+            Status = "APPROVED",
+
+            PaymentType = "MANUAL_ADJUSTMENT",
+
+            PaidFrom = startDate,
+
+            PaidUntil = endDate,
+
+            ApprovedAt = DateTime.UtcNow,
+
+            ApprovedBy =
+        User.Identity?.Name ??
+        User.FindFirst("username")?.Value ??
+        "ADMIN",
+
+            Notes =
+        request.Notes ??
+        $"Extensión manual de {request.Days} días.",
+
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.Payments.Add(payment);
 
         await _db.SaveChangesAsync();
 
