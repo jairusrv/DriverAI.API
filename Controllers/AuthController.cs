@@ -248,18 +248,8 @@ public class AuthController : ControllerBase
             });
         }
 
-        var hasAccess = user.HasAccess();
-
-        if (!hasAccess)
-        {
-            return Unauthorized(new
-            {
-                success = false,
-                message = "Tu período de prueba ha expirado. Activa tu suscripción.",
-                errors = new List<string> { "subscription_expired" },
-                data = BuildSubscriptionResponse(user)
-            });
-        }
+        
+        
 
         user.LastLoginAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();

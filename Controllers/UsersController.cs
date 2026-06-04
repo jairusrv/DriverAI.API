@@ -1,9 +1,9 @@
 using DriverAI.API.Config;
 using DriverAI.API.Models.Entities;
 using DriverAI.API.Models.Requests;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authorization;
 
 namespace DriverAI.API.Controllers;
 
@@ -137,8 +137,6 @@ public class UsersController : ControllerBase
             };
 
             _db.UserSubscriptions.Add(subscription);
-
-
         }
         else
         {
@@ -299,37 +297,25 @@ public class UsersController : ControllerBase
         var payment = new Payment
         {
             UserId = user.Id,
-
             Amount = 0,
-
             Currency = "CRC",
-
             Provider = "ADMIN_PANEL",
-
             ProviderReference = Guid.NewGuid()
-        .ToString("N")
-        .Substring(0, 12)
-        .ToUpper(),
-
+                .ToString("N")
+                .Substring(0, 12)
+                .ToUpper(),
             Status = "APPROVED",
-
             PaymentType = "MANUAL_ADJUSTMENT",
-
             PaidFrom = startDate,
-
             PaidUntil = endDate,
-
             ApprovedAt = DateTime.UtcNow,
-
             ApprovedBy =
-        User.Identity?.Name ??
-        User.FindFirst("username")?.Value ??
-        "ADMIN",
-
+                User.Identity?.Name ??
+                User.FindFirst("username")?.Value ??
+                "ADMIN",
             Notes =
-        request.Notes ??
-        $"Extensión manual de {request.Days} días.",
-
+                request.Notes ??
+                $"Extensión manual de {request.Days} días.",
             CreatedAt = DateTime.UtcNow
         };
 
@@ -340,7 +326,8 @@ public class UsersController : ControllerBase
         return Ok(new
         {
             message = "Suscripción extendida",
-            subscription
+            subscription,
+            payment
         });
     }
 
@@ -370,9 +357,9 @@ public class UsersController : ControllerBase
 
     [HttpPost("{id:int}/promote-admin")]
     public async Task<IActionResult> PromoteToAdmin(
-    int id,
-    PromoteAdminRequest request
-)
+        int id,
+        PromoteAdminRequest request
+    )
     {
         var user = await _db.Users
             .FirstOrDefaultAsync(x => x.Id == id);
@@ -402,10 +389,9 @@ public class UsersController : ControllerBase
             notes = request.Notes
         });
     }
+
     [HttpPost("{id:int}/demote-admin")]
-    public async Task<IActionResult> DemoteAdmin(
-        int id
-    )
+    public async Task<IActionResult> DemoteAdmin(int id)
     {
         var user = await _db.Users
             .FirstOrDefaultAsync(x => x.Id == id);
